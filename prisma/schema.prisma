@@ -1,0 +1,78 @@
+// Prisma schema for Family Shopping List App
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Users authenticated via Google OAuth
+model User {
+  id            String         @id @default(cuid())
+  googleId      String         @unique
+  email         String         @unique
+  name          String
+  image         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  createdLists  ShoppingList[] @relation("ListCreator")
+  assignedItems ListItem[]     @relation("ItemAssignee")
+}
+
+// Shopping lists for events
+model ShoppingList {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  eventType   String?    // 'birthday', 'dinner', 'christmas', 'custom'
+  eventDate   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  creator     User       @relation("ListCreator", fields: [creatorId], references: [id])
+  creatorId   String
+  items       ListItem[]
+}
+
+// Items in a shopping list
+model ListItem {
+  id             String       @id @default(cuid())
+  name           String
+  quantity       Float        @default(1)
+  unit           String       @default("pcs")
+  category       String?      // 'food', 'drinks', 'decorations', 'supplies', etc.
+  status         ItemStatus   @default(PENDING)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  list           ShoppingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId         String
+  assignedUser   User?        @relation("ItemAssignee", fields: [assignedUserId], references: [id])
+  assignedUserId String?
+}
+
+// Pre-defined event templates
+model EventTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  eventType   String   // 'birthday', 'dinner', 'christmas'
+  description String?
+  items       String   // JSON array of default items
+  createdAt   DateTime @default(now())
+}
+
+// Item status enum
+enum ItemStatus {
+  PENDING    // Not yet assigned
+  ASSIGNED   // Someone is handling this item
+  PURCHASED  // Item has been bought
+}

@@ -1,0 +1,35 @@
+{
+  "name": "shopping-list",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.74",
+    "@iconify-json/simple-icons": "^1.2.59",
+    "@nuxt/ui": "^4.2.1",
+    "@pinia/nuxt": "^0.9.0",
+    "@prisma/client": "^6.9.0",
+    "nuxt": "^4.2.2",
+    "nuxt-auth-utils": "^0.5.26",
+    "pinia": "^2.3.0"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.10.0",
+    "@types/node": "^25.0.3",
+    "eslint": "^9.39.1",
+    "prisma": "^6.9.0",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.1.5"
+  }
+}
