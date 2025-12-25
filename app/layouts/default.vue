@@ -25,7 +25,7 @@ const navigation = [
           class="flex items-center gap-2"
         >
           <span class="text-xl">🛒</span>
-          <span class="font-semibold text-gray-900 dark:text-white">Gather</span>
+          <span class="font-semibold text-gray-900 dark:text-white">Chopping List</span>
         </NuxtLink>
 
         <!-- User avatar with dropdown -->

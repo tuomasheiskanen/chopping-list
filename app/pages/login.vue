@@ -27,7 +27,7 @@ const errorMessage = computed(() => {
           🛒
         </div>
         <h1 class="text-3xl font-semibold text-gray-900 dark:text-white tracking-tight">
-          Gather
+          Chopping List
         </h1>
         <p class="mt-3 text-gray-500 dark:text-gray-400 text-base">
           Share shopping for events with family and friends

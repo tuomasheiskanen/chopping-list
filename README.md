@@ -1,4 +1,4 @@
-# Family Shopping List
+# Chopping List
 
 A mobile-first, collaborative shopping list application for family event planning. Built with Nuxt 4, Vue 3, and TypeScript.
 

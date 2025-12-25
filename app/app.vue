@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const appName = 'Gather'
+const appName = 'Chopping List'
 const description = 'Share shopping responsibilities with family and friends. Make event planning effortless.'
 
 useHead({

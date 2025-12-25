@@ -1,4 +1,4 @@
-// Application types for Family Shopping List
+// Application types for Chopping List
 
 export type ItemStatus = 'PENDING' | 'ASSIGNED' | 'PURCHASED'
 

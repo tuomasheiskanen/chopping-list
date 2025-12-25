@@ -24,7 +24,7 @@ export default defineNuxtConfig({
     },
     // Public (exposed to client)
     public: {
-      appName: 'Family Shopping List'
+      appName: 'Chopping List'
     }
   },
 
