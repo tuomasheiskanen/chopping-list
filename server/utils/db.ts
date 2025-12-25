@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { createClient } from '@libsql/client'
-import { PrismaLibSQL } from '@prisma/adapter-libsql'
+import { PrismaLibSql } from '@prisma/adapter-libsql'
 
 // Prevent multiple instances of Prisma Client in development
 const globalForPrisma = globalThis as unknown as {
@@ -16,9 +15,21 @@ function createPrismaClient() {
 
   // If using Turso (libsql://), use the libSQL adapter
   if (databaseUrl.startsWith('libsql://')) {
-    const libsql = createClient({ url: databaseUrl })
-    const adapter = new PrismaLibSQL(libsql)
-    return new PrismaClient({ adapter })
+    // Parse the URL to extract connection string and auth token
+    try {
+      const url = new URL(databaseUrl)
+      const connectionString = `libsql://${url.host}${url.pathname}`
+      const authToken = url.searchParams.get('authToken') || undefined
+
+      const adapter = new PrismaLibSql({
+        url: connectionString,
+        authToken
+      })
+      return new PrismaClient({ adapter })
+    } catch (error) {
+      console.error('Error parsing Turso database URL:', error)
+      throw new Error('Invalid Turso database URL format')
+    }
   }
 
   // Otherwise, use standard Prisma Client (for file:// SQLite)
