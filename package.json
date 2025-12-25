@@ -17,8 +17,10 @@
   "dependencies": {
     "@iconify-json/lucide": "^1.2.74",
     "@iconify-json/simple-icons": "^1.2.59",
+    "@libsql/client": "^0.15.15",
     "@nuxt/ui": "^4.2.1",
     "@pinia/nuxt": "^0.9.0",
+    "@prisma/adapter-libsql": "^7.2.0",
     "@prisma/client": "^6.9.0",
     "nuxt": "^4.2.2",
     "nuxt-auth-utils": "^0.5.26",
