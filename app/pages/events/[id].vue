@@ -11,6 +11,11 @@ interface ListItem {
     name: string
     image?: string | null
   } | null
+  createdAt?: string | Date
+  updatedAt?: string | Date
+  category?: string | null
+  notes?: string | null
+  listId?: string
 }
 
 interface EventData {
@@ -114,11 +119,14 @@ async function addItem() {
 
   isAddingItem.value = true
   try {
-    await $fetch(`/api/lists/${eventId.value}/items`, {
+    const response = await $fetch<{ item: ListItem }>(`/api/lists/${eventId.value}/items`, {
       method: 'POST',
       body: { name: itemName, quantity: 1, unit: 'pcs' }
     })
-    await refresh()
+    // Add to local state instead of refreshing
+    if (listData.value && 'list' in listData.value) {
+      listData.value.list.items.unshift(response.item as any)
+    }
   } catch (err) {
     // Restore the item name if it failed
     newItemName.value = itemName
@@ -138,8 +146,14 @@ async function claimItem(item: ListItem) {
   setItemError(item.id, null)
 
   try {
-    await $fetch(`/api/lists/${eventId.value}/items/${item.id}/claim`, { method: 'POST' })
-    await refresh()
+    const response = await $fetch<{ item: ListItem }>(`/api/lists/${eventId.value}/items/${item.id}/claim`, { method: 'POST' })
+    // Update local state instead of refreshing
+    if (listData.value && 'list' in listData.value) {
+      const index = listData.value.list.items.findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        listData.value.list.items[index] = response.item as any
+      }
+    }
   } catch {
     setItemError(item.id, 'Failed to update item')
   } finally {
@@ -154,8 +168,14 @@ async function purchaseItem(item: ListItem) {
   setItemError(item.id, null)
 
   try {
-    await $fetch(`/api/lists/${eventId.value}/items/${item.id}/purchase`, { method: 'POST' })
-    await refresh()
+    const response = await $fetch<{ item: ListItem }>(`/api/lists/${eventId.value}/items/${item.id}/purchase`, { method: 'POST' })
+    // Update local state instead of refreshing
+    if (listData.value && 'list' in listData.value) {
+      const index = listData.value.list.items.findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        listData.value.list.items[index] = response.item as any
+      }
+    }
   } catch {
     setItemError(item.id, 'Failed to update item')
   } finally {
@@ -186,12 +206,18 @@ async function saveItemEdit(item: ListItem) {
   setItemError(item.id, null)
 
   try {
-    await $fetch(`/api/lists/${eventId.value}/items/${item.id}`, {
+    const response = await $fetch<{ item: ListItem }>(`/api/lists/${eventId.value}/items/${item.id}`, {
       method: 'PUT',
       body: { name: newName }
     })
+    // Update local state instead of refreshing
+    if (listData.value && 'list' in listData.value) {
+      const index = listData.value.list.items.findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        listData.value.list.items[index] = response.item as any
+      }
+    }
     editingItemId.value = null
-    await refresh()
   } catch {
     setItemError(item.id, 'Failed to update item')
   } finally {
@@ -212,7 +238,13 @@ async function deleteItem(item: ListItem) {
 
   try {
     await $fetch(`/api/lists/${eventId.value}/items/${item.id}`, { method: 'DELETE' })
-    await refresh()
+    // Remove from local state instead of refreshing
+    if (listData.value && 'list' in listData.value) {
+      const index = listData.value.list.items.findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        listData.value.list.items.splice(index, 1)
+      }
+    }
   } catch {
     setItemError(item.id, 'Failed to delete item')
   } finally {
