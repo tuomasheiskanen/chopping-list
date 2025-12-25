@@ -33,12 +33,18 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Only list owner can delete items
-  if (existingItem.list.creatorId !== user.id) {
+  // List owner can delete any item
+  // Item claimer can delete their claimed item
+  // Anyone can delete unclaimed items (for family collaboration)
+  const isListOwner = existingItem.list.creatorId === user.id
+  const isItemClaimer = existingItem.assignedUserId === user.id
+  const isUnclaimed = !existingItem.assignedUserId
+
+  if (!isListOwner && !isItemClaimer && !isUnclaimed) {
     throw createError({
       statusCode: 403,
       statusMessage: 'Forbidden',
-      message: 'Only the list owner can delete items'
+      message: 'Only the list owner or the person who claimed this item can delete it'
     })
   }
 
