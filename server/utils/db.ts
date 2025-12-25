@@ -18,17 +18,28 @@ function createPrismaClient() {
     // Parse the URL to extract connection string and auth token
     try {
       const url = new URL(databaseUrl)
-      const connectionString = `libsql://${url.host}${url.pathname}`
-      const authToken = url.searchParams.get('authToken') || undefined
+      // Extract the base URL - Turso format is libsql://host (no path usually)
+      // Remove trailing slash if present
+      const host = url.host
+      const path = url.pathname === '/' ? '' : url.pathname
+      const baseUrl = `libsql://${host}${path}`
+      const authToken = url.searchParams.get('authToken')
+
+      if (!authToken) {
+        throw new Error('Turso database URL must include authToken query parameter. Format: libsql://host?authToken=token')
+      }
 
       const adapter = new PrismaLibSql({
-        url: connectionString,
+        url: baseUrl,
         authToken
       })
       return new PrismaClient({ adapter })
     } catch (error) {
-      console.error('Error parsing Turso database URL:', error)
-      throw new Error('Invalid Turso database URL format')
+      console.error('Error setting up Turso connection:', error)
+      if (error instanceof Error && error.message.includes('URL')) {
+        throw error
+      }
+      throw new Error(`Failed to connect to Turso: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
