@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
+// Use web adapter for serverless environments (Vercel)
+import { PrismaLibSql } from '@prisma/adapter-libsql/web'
 
 // Prevent multiple instances of Prisma Client in development
 const globalForPrisma = globalThis as unknown as {
@@ -19,7 +20,6 @@ function createPrismaClient() {
     try {
       const url = new URL(databaseUrl)
       // Extract the base URL - Turso format is libsql://host (no path usually)
-      // Remove trailing slash if present
       const host = url.host
       const path = url.pathname === '/' ? '' : url.pathname
       const baseUrl = `libsql://${host}${path}`
@@ -29,13 +29,16 @@ function createPrismaClient() {
         throw new Error('Turso database URL must include authToken query parameter. Format: libsql://host?authToken=token')
       }
 
+      // For serverless (Vercel), use the web adapter which works better in constrained environments
       const adapter = new PrismaLibSql({
         url: baseUrl,
         authToken
       })
+      
       return new PrismaClient({ adapter })
     } catch (error) {
       console.error('Error setting up Turso connection:', error)
+      console.error('DATABASE_URL format:', databaseUrl?.substring(0, 80) + '...')
       if (error instanceof Error && error.message.includes('URL')) {
         throw error
       }
