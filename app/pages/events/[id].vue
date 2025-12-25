@@ -124,8 +124,14 @@ async function addItem() {
       body: { name: itemName, quantity: 1, unit: 'pcs' }
     })
     // Add to local state instead of refreshing
-    if (listData.value && 'list' in listData.value) {
-      listData.value.list.items = [response.item as any, ...listData.value.list.items]
+    if (listData.value?.list) {
+      listData.value = {
+        ...listData.value,
+        list: {
+          ...listData.value.list,
+          items: [response.item as any, ...listData.value.list.items]
+        }
+      }
     }
   } catch (err) {
     // Restore the item name if it failed
@@ -148,13 +154,19 @@ async function claimItem(item: ListItem) {
   try {
     const response = await $fetch<{ item: ListItem }>(`/api/lists/${eventId.value}/items/${item.id}/claim`, { method: 'POST' })
     // Update local state instead of refreshing
-    if (listData.value && 'list' in listData.value) {
+    if (listData.value?.list) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        // Create new array to trigger reactivity
+        // Create new array and new list object to trigger reactivity
         const updatedItems = [...listData.value.list.items]
         updatedItems[index] = response.item as any
-        listData.value.list.items = updatedItems
+        listData.value = {
+          ...listData.value,
+          list: {
+            ...listData.value.list,
+            items: updatedItems
+          }
+        }
       }
     }
   } catch {
@@ -173,13 +185,19 @@ async function purchaseItem(item: ListItem) {
   try {
     const response = await $fetch<{ item: ListItem }>(`/api/lists/${eventId.value}/items/${item.id}/purchase`, { method: 'POST' })
     // Update local state instead of refreshing
-    if (listData.value && 'list' in listData.value) {
+    if (listData.value?.list) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        // Create new array to trigger reactivity
+        // Create new array and new list object to trigger reactivity
         const updatedItems = [...listData.value.list.items]
         updatedItems[index] = response.item as any
-        listData.value.list.items = updatedItems
+        listData.value = {
+          ...listData.value,
+          list: {
+            ...listData.value.list,
+            items: updatedItems
+          }
+        }
       }
     }
   } catch {
@@ -217,13 +235,19 @@ async function saveItemEdit(item: ListItem) {
       body: { name: newName }
     })
     // Update local state instead of refreshing
-    if (listData.value && 'list' in listData.value) {
+    if (listData.value?.list) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        // Create new array to trigger reactivity
+        // Create new array and new list object to trigger reactivity
         const updatedItems = [...listData.value.list.items]
         updatedItems[index] = response.item as any
-        listData.value.list.items = updatedItems
+        listData.value = {
+          ...listData.value,
+          list: {
+            ...listData.value.list,
+            items: updatedItems
+          }
+        }
       }
     }
     editingItemId.value = null
@@ -248,11 +272,14 @@ async function deleteItem(item: ListItem) {
   try {
     await $fetch(`/api/lists/${eventId.value}/items/${item.id}`, { method: 'DELETE' })
     // Remove from local state instead of refreshing
-    if (listData.value && 'list' in listData.value) {
-      const index = listData.value.list.items.findIndex(i => i.id === item.id)
-      if (index !== -1) {
-        // Create new array to trigger reactivity
-        listData.value.list.items = listData.value.list.items.filter(i => i.id !== item.id)
+    if (listData.value?.list) {
+      // Create new array and new list object to trigger reactivity
+      listData.value = {
+        ...listData.value,
+        list: {
+          ...listData.value.list,
+          items: listData.value.list.items.filter(i => i.id !== item.id)
+        }
       }
     }
   } catch {
