@@ -399,16 +399,6 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
               class="bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800"
             >
               <div class="flex items-center gap-3">
-                <button
-                  class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0 hover:border-primary-500 transition-colors disabled:opacity-50"
-                  :disabled="isLoading(item.id)"
-                  @click="purchaseItem(item)"
-                >
-                  <div
-                    v-if="isLoading(item.id)"
-                    class="w-full h-full border-2 border-primary-500 border-t-transparent rounded-full animate-spin"
-                  />
-                </button>
                 <!-- Inline edit mode -->
                 <form
                   v-if="editingItemId === item.id"
@@ -483,15 +473,28 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
               :class="isMyItem(item) ? 'border-l-4 border-l-primary-500' : ''"
             >
               <div class="flex items-center gap-3">
+                <!-- Avatar showing who claimed it -->
                 <button
-                  class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0 hover:border-primary-500 transition-colors disabled:opacity-50"
+                  class="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden ring-2 ring-transparent hover:ring-primary-200 dark:hover:ring-primary-800 transition-all disabled:opacity-50"
                   :disabled="isLoading(item.id)"
                   @click="purchaseItem(item)"
                 >
                   <div
                     v-if="isLoading(item.id)"
-                    class="w-full h-full border-2 border-primary-500 border-t-transparent rounded-full animate-spin"
+                    class="w-full h-full border-2 border-primary-500 border-t-transparent rounded-full animate-spin flex items-center justify-center"
                   />
+                  <img
+                    v-else-if="item.assignedUser?.image"
+                    :src="item.assignedUser.image"
+                    :alt="item.assignedUser.name"
+                    class="w-full h-full object-cover"
+                  >
+                  <div
+                    v-else
+                    class="w-full h-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 text-sm font-medium"
+                  >
+                    {{ (item.assignedUser?.name || 'U').charAt(0).toUpperCase() }}
+                  </div>
                 </button>
                 <!-- Inline edit mode -->
                 <form
@@ -516,17 +519,9 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
                   @click="startEditingItem(item)"
                 >
                   <span class="text-gray-900 dark:text-white">{{ item.name }}</span>
-                  <div class="flex items-center gap-1.5 mt-1">
-                    <img
-                      v-if="item.assignedUser?.image"
-                      :src="item.assignedUser.image"
-                      :alt="item.assignedUser.name"
-                      class="w-4 h-4 rounded-full"
-                    >
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      {{ isMyItem(item) ? 'You' : item.assignedUser?.name }}
-                    </span>
-                  </div>
+                  <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                    {{ isMyItem(item) ? '(You)' : `(${item.assignedUser?.name})` }}
+                  </span>
                 </button>
                 <button
                   class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
@@ -593,20 +588,37 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
               class="bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800 opacity-60"
             >
               <div class="flex items-center gap-3">
+                <!-- Avatar with checkmark overlay -->
                 <button
-                  class="w-6 h-6 rounded-full bg-primary-500 flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                  class="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden ring-2 ring-primary-500 disabled:opacity-50 relative"
                   :disabled="isLoading(item.id)"
                   @click="purchaseItem(item)"
                 >
-                  <UIcon
-                    v-if="!isLoading(item.id)"
-                    name="i-lucide-check"
-                    class="w-4 h-4 text-white"
-                  />
                   <div
-                    v-else
-                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                    v-if="isLoading(item.id)"
+                    class="w-full h-full border-2 border-primary-500 border-t-transparent rounded-full animate-spin flex items-center justify-center"
                   />
+                  <template v-else>
+                    <img
+                      v-if="item.assignedUser?.image"
+                      :src="item.assignedUser.image"
+                      :alt="item.assignedUser.name"
+                      class="w-full h-full object-cover"
+                    >
+                    <div
+                      v-else
+                      class="w-full h-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 text-sm font-medium"
+                    >
+                      {{ (item.assignedUser?.name || 'U').charAt(0).toUpperCase() }}
+                    </div>
+                    <!-- Checkmark overlay -->
+                    <div class="absolute inset-0 bg-primary-500/80 flex items-center justify-center">
+                      <UIcon
+                        name="i-lucide-check"
+                        class="w-5 h-5 text-white"
+                      />
+                    </div>
+                  </template>
                 </button>
                 <!-- Inline edit mode -->
                 <form
@@ -631,20 +643,12 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
                   @click="startEditingItem(item)"
                 >
                   <span class="text-gray-900 dark:text-white line-through">{{ item.name }}</span>
-                  <div
+                  <span
                     v-if="item.assignedUser"
-                    class="flex items-center gap-1.5 mt-1"
+                    class="text-xs text-gray-500 dark:text-gray-400 ml-2"
                   >
-                    <img
-                      v-if="item.assignedUser?.image"
-                      :src="item.assignedUser.image"
-                      :alt="item.assignedUser.name"
-                      class="w-4 h-4 rounded-full"
-                    >
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      {{ item.assignedUser?.name }}
-                    </span>
-                  </div>
+                    ({{ item.assignedUser.name }})
+                  </span>
                 </button>
                 <button
                   class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
