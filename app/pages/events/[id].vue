@@ -499,13 +499,23 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
                   class="w-4 h-4"
                 />
               </button>
-              <button
+              <div
                 v-if="isMyItem(item)"
-                class="h-8 px-3 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
-                @click="purchaseItem(item)"
+                class="flex items-center gap-2"
               >
-                Done
-              </button>
+                <button
+                  class="h-8 px-3 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  @click="claimItem(item)"
+                >
+                  Unclaim
+                </button>
+                <button
+                  class="h-8 px-3 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
+                  @click="purchaseItem(item)"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>
