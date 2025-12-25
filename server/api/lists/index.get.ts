@@ -4,14 +4,8 @@ import { requireAuth } from '../../utils/auth'
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
 
-  // Get all lists where the user is the creator or has assigned items
+  // Get all lists (for family use, everyone can see all lists)
   const lists = await prisma.shoppingList.findMany({
-    where: {
-      OR: [
-        { creatorId: user.id },
-        { items: { some: { assignedUserId: user.id } } }
-      ]
-    },
     include: {
       creator: {
         select: {
