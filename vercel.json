@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run db:generate && npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nuxtjs",
+  "regions": ["iad1"]
+}

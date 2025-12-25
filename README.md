@@ -17,7 +17,7 @@ A mobile-first, collaborative shopping list application for family event plannin
 - **Framework**: Nuxt 4 with TypeScript
 - **UI**: Nuxt UI 4 (Tailwind CSS)
 - **State**: Pinia
-- **Database**: SQLite with Prisma ORM
+- **Database**: SQLite (local) / Turso/libSQL (production) with Prisma ORM
 - **Auth**: nuxt-auth-utils with Google OAuth
 - **Deployment**: Vercel
 
@@ -143,42 +143,66 @@ shopping-list/
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | SQLite database path (default: `file:./dev.db`) |
-| `NUXT_SESSION_PASSWORD` | Session encryption key (32+ chars) |
+| `DATABASE_URL` | Database connection string. Local: `file:./dev.db`, Production: `libsql://...` (Turso) |
+| `NUXT_SESSION_PASSWORD` | Session encryption key (32+ chars, generate with `openssl rand -base64 32`) |
 | `NUXT_OAUTH_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `NUXT_OAUTH_GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 
 ## Deployment
 
-### Vercel
+### Vercel with Turso (libSQL)
 
-1. Connect your GitHub repository to Vercel
-2. Add environment variables in Vercel dashboard:
-   - `NUXT_SESSION_PASSWORD`
-   - `NUXT_OAUTH_GOOGLE_CLIENT_ID`
-   - `NUXT_OAUTH_GOOGLE_CLIENT_SECRET`
-   - `DATABASE_URL` (for production, use Vercel Postgres or similar)
-3. Update Google OAuth redirect URI to your production URL
-4. Deploy automatically on push
+Vercel doesn't support SQLite files, so we use [Turso](https://turso.tech/) (libSQL) which is SQLite-compatible and works with serverless.
 
-### Production Database
+#### Step 1: Set up Turso Database
 
-For production, switch from SQLite to PostgreSQL:
-
-1. Update `prisma/schema.prisma`:
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
+1. Sign up at [turso.tech](https://turso.tech/)
+2. Create a new database (e.g., `shopping-list`)
+3. Create an authentication token:
+   ```bash
+   turso db tokens create shopping-list
    ```
+4. Get your database URL:
+   ```bash
+   turso db show shopping-list --url
+   ```
+   It will look like: `libsql://your-database-name-org.turso.io`
 
-2. Update `DATABASE_URL` to your PostgreSQL connection string
+#### Step 2: Initialize Database Schema
 
-3. Run migrations:
+1. Set your Turso database URL:
+   ```bash
+   export DATABASE_URL="libsql://your-database-name-org.turso.io?authToken=your-token"
+   ```
+2. Push the schema:
    ```bash
    npm run db:push
    ```
+
+#### Step 3: Deploy to Vercel
+
+1. Connect your GitHub repository to [Vercel](https://vercel.com)
+2. Add environment variables in Vercel dashboard:
+   - `DATABASE_URL` - Your Turso libSQL URL (format: `libsql://...?authToken=...`)
+   - `NUXT_SESSION_PASSWORD` - Generate with: `openssl rand -base64 32`
+   - `NUXT_OAUTH_GOOGLE_CLIENT_ID` - From Google Cloud Console
+   - `NUXT_OAUTH_GOOGLE_CLIENT_SECRET` - From Google Cloud Console
+3. Update Google OAuth redirect URI in Google Cloud Console:
+   - Add: `https://your-app.vercel.app/api/auth/google/callback`
+4. Deploy! Vercel will automatically build and deploy on push to main
+
+#### Step 4: Update Google OAuth Settings
+
+In Google Cloud Console, update your OAuth client:
+- **Authorized JavaScript origins**: Add `https://your-app.vercel.app`
+- **Authorized redirect URIs**: Add `https://your-app.vercel.app/api/auth/google/callback`
+
+### Local Development
+
+For local development, continue using SQLite:
+```bash
+DATABASE_URL="file:./dev.db" npm run dev
+```
 
 ## Usage
 
