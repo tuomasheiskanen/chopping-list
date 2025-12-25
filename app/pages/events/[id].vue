@@ -58,10 +58,12 @@ const showShareModal = ref(false)
 const editingItemId = ref<string | null>(null)
 const editingItemName = ref('')
 
-// Undo/feedback state
-const undoAction = ref<{ message: string, undo: () => Promise<void> } | null>(null)
-const undoTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
-const errorMessage = ref('')
+// Loading states per item
+const loadingItems = ref<Set<string>>(new Set())
+const itemErrors = ref<Map<string, string>>(new Map())
+
+// Global error for add item
+const addItemError = ref('')
 
 const userId = computed(() => (user.value as { id: string } | null)?.id)
 
@@ -76,11 +78,31 @@ function getEventEmoji() {
   return '📋'
 }
 
-function showError(message: string) {
-  errorMessage.value = message
-  setTimeout(() => {
-    errorMessage.value = ''
-  }, 4000)
+function setItemLoading(itemId: string, loading: boolean) {
+  if (loading) {
+    loadingItems.value.add(itemId)
+  } else {
+    loadingItems.value.delete(itemId)
+  }
+}
+
+function setItemError(itemId: string, error: string | null) {
+  if (error) {
+    itemErrors.value.set(itemId, error)
+    setTimeout(() => {
+      itemErrors.value.delete(itemId)
+    }, 4000)
+  } else {
+    itemErrors.value.delete(itemId)
+  }
+}
+
+function isLoading(itemId: string) {
+  return loadingItems.value.has(itemId)
+}
+
+function getItemError(itemId: string) {
+  return itemErrors.value.get(itemId) || null
 }
 
 async function addItem() {
@@ -88,6 +110,7 @@ async function addItem() {
 
   const itemName = newItemName.value.trim()
   newItemName.value = ''
+  addItemError.value = ''
 
   isAddingItem.value = true
   try {
@@ -96,10 +119,10 @@ async function addItem() {
       body: { name: itemName, quantity: 1, unit: 'pcs' }
     })
     await refresh()
-  } catch {
+  } catch (err) {
     // Restore the item name if it failed
     newItemName.value = itemName
-    showError('Failed to add item')
+    addItemError.value = 'Failed to add item. Please try again.'
   } finally {
     isAddingItem.value = false
     // Keep focus on input for quick successive additions
@@ -109,43 +132,34 @@ async function addItem() {
 }
 
 async function claimItem(item: ListItem) {
-  const wasClaimed = item.status === 'ASSIGNED' && isMyItem(item)
+  if (isLoading(item.id)) return
+
+  setItemLoading(item.id, true)
+  setItemError(item.id, null)
 
   try {
     await $fetch(`/api/lists/${eventId.value}/items/${item.id}/claim`, { method: 'POST' })
-
-    // Show undo toast
-    showUndo(
-      wasClaimed ? `Unclaimed "${item.name}"` : `Claimed "${item.name}"`,
-      async () => {
-        await $fetch(`/api/lists/${eventId.value}/items/${item.id}/claim`, { method: 'POST' })
-        refresh()
-      }
-    )
-
-    refresh()
+    await refresh()
   } catch {
-    showError('Failed to update item')
+    setItemError(item.id, 'Failed to update item')
+  } finally {
+    setItemLoading(item.id, false)
   }
 }
 
 async function purchaseItem(item: ListItem) {
-  const wasPurchased = item.status === 'PURCHASED'
+  if (isLoading(item.id)) return
+
+  setItemLoading(item.id, true)
+  setItemError(item.id, null)
 
   try {
     await $fetch(`/api/lists/${eventId.value}/items/${item.id}/purchase`, { method: 'POST' })
-
-    showUndo(
-      wasPurchased ? `Unmarked "${item.name}"` : `Marked "${item.name}" as bought`,
-      async () => {
-        await $fetch(`/api/lists/${eventId.value}/items/${item.id}/purchase`, { method: 'POST' })
-        refresh()
-      }
-    )
-
-    refresh()
+    await refresh()
   } catch {
-    showError('Failed to update item')
+    setItemError(item.id, 'Failed to update item')
+  } finally {
+    setItemLoading(item.id, false)
   }
 }
 
@@ -168,15 +182,20 @@ async function saveItemEdit(item: ListItem) {
     return
   }
 
+  setItemLoading(item.id, true)
+  setItemError(item.id, null)
+
   try {
     await $fetch(`/api/lists/${eventId.value}/items/${item.id}`, {
       method: 'PUT',
       body: { name: newName }
     })
     editingItemId.value = null
-    refresh()
+    await refresh()
   } catch {
-    showError('Failed to update item')
+    setItemError(item.id, 'Failed to update item')
+  } finally {
+    setItemLoading(item.id, false)
   }
 }
 
@@ -186,47 +205,19 @@ function cancelEditItem() {
 }
 
 async function deleteItem(item: ListItem) {
+  if (isLoading(item.id)) return
+
+  setItemLoading(item.id, true)
+  setItemError(item.id, null)
+
   try {
     await $fetch(`/api/lists/${eventId.value}/items/${item.id}`, { method: 'DELETE' })
-
-    showUndo(
-      `Deleted "${item.name}"`,
-      async () => {
-        // Re-add the item
-        await $fetch(`/api/lists/${eventId.value}/items`, {
-          method: 'POST',
-          body: { name: item.name, quantity: item.quantity, unit: item.unit }
-        })
-        refresh()
-      }
-    )
-
-    refresh()
+    await refresh()
   } catch {
-    showError('Failed to delete item')
+    setItemError(item.id, 'Failed to delete item')
+  } finally {
+    setItemLoading(item.id, false)
   }
-}
-
-function showUndo(message: string, undoFn: () => Promise<void>) {
-  // Clear previous timeout
-  if (undoTimeout.value) clearTimeout(undoTimeout.value)
-
-  undoAction.value = { message, undo: undoFn }
-
-  // Auto-hide after 4 seconds
-  undoTimeout.value = setTimeout(() => {
-    undoAction.value = null
-  }, 4000)
-}
-
-async function executeUndo() {
-  if (!undoAction.value) return
-
-  const fn = undoAction.value.undo
-  undoAction.value = null
-  if (undoTimeout.value) clearTimeout(undoTimeout.value)
-
-  await fn()
 }
 
 function openEditModal() {
@@ -249,9 +240,10 @@ async function saveEdit() {
       }
     })
     showEditModal.value = false
-    refresh()
-  } catch {
-    showError('Failed to update event')
+    await refresh()
+  } catch (err) {
+    console.error('Failed to update event:', err)
+    alert('Failed to update event. Please try again.')
   }
 }
 
@@ -261,8 +253,9 @@ async function deleteEvent() {
   try {
     await $fetch(`/api/lists/${eventId.value}`, { method: 'DELETE' })
     router.push('/events')
-  } catch {
-    showError('Failed to delete event')
+  } catch (err) {
+    console.error('Failed to delete event:', err)
+    alert('Failed to delete event. Please try again.')
   }
 }
 
@@ -374,11 +367,22 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
             :disabled="!newItemName.trim() || isAddingItem"
           >
             <UIcon
+              v-if="!isAddingItem"
               name="i-lucide-plus"
               class="w-5 h-5"
             />
+            <div
+              v-else
+              class="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"
+            />
           </button>
         </div>
+        <p
+          v-if="addItemError"
+          class="mt-2 text-sm text-red-600 dark:text-red-400"
+        >
+          {{ addItemError }}
+        </p>
       </form>
 
       <!-- Items list -->
@@ -392,50 +396,76 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
             <div
               v-for="item in unclaimedItems"
               :key="item.id"
-              class="flex items-center gap-3 bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800"
+              class="bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800"
             >
-              <button
-                class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0 hover:border-primary-500 transition-colors"
-                @click="purchaseItem(item)"
-              />
-              <!-- Inline edit mode -->
-              <form
-                v-if="editingItemId === item.id"
-                class="flex-1 min-w-0"
-                @submit.prevent="saveItemEdit(item)"
-              >
-                <input
-                  v-model="editingItemName"
-                  type="text"
-                  class="w-full h-8 px-2 -mx-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-                  autofocus
-                  @blur="saveItemEdit(item)"
-                  @keydown.escape="cancelEditItem"
+              <div class="flex items-center gap-3">
+                <button
+                  class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0 hover:border-primary-500 transition-colors disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
+                  @click="purchaseItem(item)"
                 >
-              </form>
-              <!-- Display mode -->
-              <button
-                v-else
-                class="flex-1 min-w-0 text-left"
-                @click="startEditingItem(item)"
+                  <div
+                    v-if="isLoading(item.id)"
+                    class="w-full h-full border-2 border-primary-500 border-t-transparent rounded-full animate-spin"
+                  />
+                </button>
+                <!-- Inline edit mode -->
+                <form
+                  v-if="editingItemId === item.id"
+                  class="flex-1 min-w-0"
+                  @submit.prevent="saveItemEdit(item)"
+                >
+                  <input
+                    v-model="editingItemName"
+                    type="text"
+                    class="w-full h-8 px-2 -mx-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                    autofocus
+                    @blur="saveItemEdit(item)"
+                    @keydown.escape="cancelEditItem"
+                  >
+                </form>
+                <!-- Display mode -->
+                <button
+                  v-else
+                  class="flex-1 min-w-0 text-left"
+                  :disabled="isLoading(item.id)"
+                  @click="startEditingItem(item)"
+                >
+                  <span class="text-gray-900 dark:text-white">{{ item.name }}</span>
+                </button>
+                <button
+                  class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
+                  @click="deleteItem(item)"
+                >
+                  <UIcon
+                    v-if="!isLoading(item.id)"
+                    name="i-lucide-trash-2"
+                    class="w-4 h-4"
+                  />
+                  <div
+                    v-else
+                    class="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"
+                  />
+                </button>
+                <button
+                  class="h-8 px-3 text-sm font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
+                  @click="claimItem(item)"
+                >
+                  <span v-if="!isLoading(item.id)">Claim</span>
+                  <div
+                    v-else
+                    class="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto"
+                  />
+                </button>
+              </div>
+              <p
+                v-if="getItemError(item.id)"
+                class="mt-2 text-xs text-red-600 dark:text-red-400"
               >
-                <span class="text-gray-900 dark:text-white">{{ item.name }}</span>
-              </button>
-              <button
-                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
-                @click="deleteItem(item)"
-              >
-                <UIcon
-                  name="i-lucide-trash-2"
-                  class="w-4 h-4"
-                />
-              </button>
-              <button
-                class="h-8 px-3 text-sm font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
-                @click="claimItem(item)"
-              >
-                Claim
-              </button>
+                {{ getItemError(item.id) }}
+              </p>
             </div>
           </div>
         </div>
@@ -449,73 +479,104 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
             <div
               v-for="item in claimedItems"
               :key="item.id"
-              class="flex items-center gap-3 bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800"
+              class="bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800"
               :class="isMyItem(item) ? 'border-l-4 border-l-primary-500' : ''"
             >
-              <button
-                class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0 hover:border-primary-500 transition-colors"
-                @click="purchaseItem(item)"
-              />
-              <!-- Inline edit mode -->
-              <form
-                v-if="editingItemId === item.id"
-                class="flex-1 min-w-0"
-                @submit.prevent="saveItemEdit(item)"
-              >
-                <input
-                  v-model="editingItemName"
-                  type="text"
-                  class="w-full h-8 px-2 -mx-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-                  autofocus
-                  @blur="saveItemEdit(item)"
-                  @keydown.escape="cancelEditItem"
-                >
-              </form>
-              <!-- Display mode -->
-              <button
-                v-else
-                class="flex-1 min-w-0 text-left"
-                @click="startEditingItem(item)"
-              >
-                <span class="text-gray-900 dark:text-white">{{ item.name }}</span>
-                <div class="flex items-center gap-1.5 mt-1">
-                  <img
-                    v-if="item.assignedUser?.image"
-                    :src="item.assignedUser.image"
-                    :alt="item.assignedUser.name"
-                    class="w-4 h-4 rounded-full"
-                  >
-                  <span class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ isMyItem(item) ? 'You' : item.assignedUser?.name }}
-                  </span>
-                </div>
-              </button>
-              <button
-                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
-                @click="deleteItem(item)"
-              >
-                <UIcon
-                  name="i-lucide-trash-2"
-                  class="w-4 h-4"
-                />
-              </button>
-              <div
-                v-if="isMyItem(item)"
-                class="flex items-center gap-2"
-              >
+              <div class="flex items-center gap-3">
                 <button
-                  class="h-8 px-3 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  @click="claimItem(item)"
-                >
-                  Unclaim
-                </button>
-                <button
-                  class="h-8 px-3 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
+                  class="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0 hover:border-primary-500 transition-colors disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
                   @click="purchaseItem(item)"
                 >
-                  Done
+                  <div
+                    v-if="isLoading(item.id)"
+                    class="w-full h-full border-2 border-primary-500 border-t-transparent rounded-full animate-spin"
+                  />
                 </button>
+                <!-- Inline edit mode -->
+                <form
+                  v-if="editingItemId === item.id"
+                  class="flex-1 min-w-0"
+                  @submit.prevent="saveItemEdit(item)"
+                >
+                  <input
+                    v-model="editingItemName"
+                    type="text"
+                    class="w-full h-8 px-2 -mx-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                    autofocus
+                    @blur="saveItemEdit(item)"
+                    @keydown.escape="cancelEditItem"
+                  >
+                </form>
+                <!-- Display mode -->
+                <button
+                  v-else
+                  class="flex-1 min-w-0 text-left"
+                  :disabled="isLoading(item.id)"
+                  @click="startEditingItem(item)"
+                >
+                  <span class="text-gray-900 dark:text-white">{{ item.name }}</span>
+                  <div class="flex items-center gap-1.5 mt-1">
+                    <img
+                      v-if="item.assignedUser?.image"
+                      :src="item.assignedUser.image"
+                      :alt="item.assignedUser.name"
+                      class="w-4 h-4 rounded-full"
+                    >
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ isMyItem(item) ? 'You' : item.assignedUser?.name }}
+                    </span>
+                  </div>
+                </button>
+                <button
+                  class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
+                  @click="deleteItem(item)"
+                >
+                  <UIcon
+                    v-if="!isLoading(item.id)"
+                    name="i-lucide-trash-2"
+                    class="w-4 h-4"
+                  />
+                  <div
+                    v-else
+                    class="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"
+                  />
+                </button>
+                <div
+                  v-if="isMyItem(item)"
+                  class="flex items-center gap-2"
+                >
+                  <button
+                    class="h-8 px-3 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                    :disabled="isLoading(item.id)"
+                    @click="claimItem(item)"
+                  >
+                    <span v-if="!isLoading(item.id)">Unclaim</span>
+                    <div
+                      v-else
+                      class="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"
+                    />
+                  </button>
+                  <button
+                    class="h-8 px-3 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors disabled:opacity-50"
+                    :disabled="isLoading(item.id)"
+                    @click="purchaseItem(item)"
+                  >
+                    <span v-if="!isLoading(item.id)">Done</span>
+                    <div
+                      v-else
+                      class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                    />
+                  </button>
+                </div>
               </div>
+              <p
+                v-if="getItemError(item.id)"
+                class="mt-2 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ getItemError(item.id) }}
+              </p>
             </div>
           </div>
         </div>
@@ -529,63 +590,84 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
             <div
               v-for="item in purchasedItems"
               :key="item.id"
-              class="flex items-center gap-3 bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800 opacity-60"
+              class="bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800 opacity-60"
             >
-              <button
-                class="w-6 h-6 rounded-full bg-primary-500 flex-shrink-0 flex items-center justify-center"
-                @click="purchaseItem(item)"
-              >
-                <UIcon
-                  name="i-lucide-check"
-                  class="w-4 h-4 text-white"
-                />
-              </button>
-              <!-- Inline edit mode -->
-              <form
-                v-if="editingItemId === item.id"
-                class="flex-1 min-w-0"
-                @submit.prevent="saveItemEdit(item)"
-              >
-                <input
-                  v-model="editingItemName"
-                  type="text"
-                  class="w-full h-8 px-2 -mx-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-                  autofocus
-                  @blur="saveItemEdit(item)"
-                  @keydown.escape="cancelEditItem"
+              <div class="flex items-center gap-3">
+                <button
+                  class="w-6 h-6 rounded-full bg-primary-500 flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
+                  @click="purchaseItem(item)"
                 >
-              </form>
-              <!-- Display mode -->
-              <button
-                v-else
-                class="flex-1 min-w-0 text-left"
-                @click="startEditingItem(item)"
-              >
-                <span class="text-gray-900 dark:text-white line-through">{{ item.name }}</span>
-                <div
-                  v-if="item.assignedUser"
-                  class="flex items-center gap-1.5 mt-1"
+                  <UIcon
+                    v-if="!isLoading(item.id)"
+                    name="i-lucide-check"
+                    class="w-4 h-4 text-white"
+                  />
+                  <div
+                    v-else
+                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                  />
+                </button>
+                <!-- Inline edit mode -->
+                <form
+                  v-if="editingItemId === item.id"
+                  class="flex-1 min-w-0"
+                  @submit.prevent="saveItemEdit(item)"
                 >
-                  <img
-                    v-if="item.assignedUser?.image"
-                    :src="item.assignedUser.image"
-                    :alt="item.assignedUser.name"
-                    class="w-4 h-4 rounded-full"
+                  <input
+                    v-model="editingItemName"
+                    type="text"
+                    class="w-full h-8 px-2 -mx-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                    autofocus
+                    @blur="saveItemEdit(item)"
+                    @keydown.escape="cancelEditItem"
                   >
-                  <span class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ item.assignedUser?.name }}
-                  </span>
-                </div>
-              </button>
-              <button
-                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
-                @click="deleteItem(item)"
+                </form>
+                <!-- Display mode -->
+                <button
+                  v-else
+                  class="flex-1 min-w-0 text-left"
+                  :disabled="isLoading(item.id)"
+                  @click="startEditingItem(item)"
+                >
+                  <span class="text-gray-900 dark:text-white line-through">{{ item.name }}</span>
+                  <div
+                    v-if="item.assignedUser"
+                    class="flex items-center gap-1.5 mt-1"
+                  >
+                    <img
+                      v-if="item.assignedUser?.image"
+                      :src="item.assignedUser.image"
+                      :alt="item.assignedUser.name"
+                      class="w-4 h-4 rounded-full"
+                    >
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ item.assignedUser?.name }}
+                    </span>
+                  </div>
+                </button>
+                <button
+                  class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  :disabled="isLoading(item.id)"
+                  @click="deleteItem(item)"
+                >
+                  <UIcon
+                    v-if="!isLoading(item.id)"
+                    name="i-lucide-trash-2"
+                    class="w-4 h-4"
+                  />
+                  <div
+                    v-else
+                    class="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"
+                  />
+                </button>
+              </div>
+              <p
+                v-if="getItemError(item.id)"
+                class="mt-2 text-xs text-red-600 dark:text-red-400"
               >
-                <UIcon
-                  name="i-lucide-trash-2"
-                  class="w-4 h-4"
-                />
-              </button>
+                {{ getItemError(item.id) }}
+              </p>
             </div>
           </div>
         </div>
@@ -604,46 +686,6 @@ const emojis = ['🎉', '🎂', '🎄', '🍽️', '🥳', '🎃', '🌸', '🍕
         </div>
       </div>
     </template>
-
-    <!-- Undo/Error snackbar -->
-    <Transition
-      enter-active-class="transition-all duration-300 ease-out"
-      enter-from-class="translate-y-full opacity-0"
-      enter-to-class="translate-y-0 opacity-100"
-      leave-active-class="transition-all duration-200 ease-in"
-      leave-from-class="translate-y-0 opacity-100"
-      leave-to-class="translate-y-full opacity-0"
-    >
-      <div
-        v-if="undoAction"
-        class="fixed bottom-24 left-4 right-4 max-w-lg mx-auto bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl px-4 py-3 flex items-center justify-between shadow-lg"
-      >
-        <span class="text-sm">{{ undoAction.message }}</span>
-        <button
-          class="text-sm font-medium text-primary-400 dark:text-primary-600 hover:text-primary-300 dark:hover:text-primary-700 transition-colors"
-          @click="executeUndo"
-        >
-          Undo
-        </button>
-      </div>
-    </Transition>
-
-    <!-- Error snackbar -->
-    <Transition
-      enter-active-class="transition-all duration-300 ease-out"
-      enter-from-class="translate-y-full opacity-0"
-      enter-to-class="translate-y-0 opacity-100"
-      leave-active-class="transition-all duration-200 ease-in"
-      leave-from-class="translate-y-0 opacity-100"
-      leave-to-class="translate-y-full opacity-0"
-    >
-      <div
-        v-if="errorMessage && !undoAction"
-        class="fixed bottom-24 left-4 right-4 max-w-lg mx-auto bg-red-600 text-white rounded-xl px-4 py-3 shadow-lg"
-      >
-        <span class="text-sm">{{ errorMessage }}</span>
-      </div>
-    </Transition>
 
     <!-- Edit event modal -->
     <UModal v-model:open="showEditModal">
