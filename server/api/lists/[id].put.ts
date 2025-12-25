@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Check if list exists and user is the owner
+  // Check if list exists
   const existingList = await prisma.shoppingList.findUnique({
     where: { id: listId }
   })
@@ -34,13 +34,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (existingList.creatorId !== user.id) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: 'Forbidden',
-      message: 'You can only edit your own lists'
-    })
-  }
+  // Everyone can update events (for family collaboration)
 
   // Build update data
   const updateData: {
