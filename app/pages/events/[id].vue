@@ -125,7 +125,7 @@ async function addItem() {
     })
     // Add to local state instead of refreshing
     if (listData.value && 'list' in listData.value) {
-      listData.value.list.items.unshift(response.item as any)
+      listData.value.list.items = [response.item as any, ...listData.value.list.items]
     }
   } catch (err) {
     // Restore the item name if it failed
@@ -151,7 +151,10 @@ async function claimItem(item: ListItem) {
     if (listData.value && 'list' in listData.value) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        listData.value.list.items[index] = response.item as any
+        // Create new array to trigger reactivity
+        const updatedItems = [...listData.value.list.items]
+        updatedItems[index] = response.item as any
+        listData.value.list.items = updatedItems
       }
     }
   } catch {
@@ -173,7 +176,10 @@ async function purchaseItem(item: ListItem) {
     if (listData.value && 'list' in listData.value) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        listData.value.list.items[index] = response.item as any
+        // Create new array to trigger reactivity
+        const updatedItems = [...listData.value.list.items]
+        updatedItems[index] = response.item as any
+        listData.value.list.items = updatedItems
       }
     }
   } catch {
@@ -214,7 +220,10 @@ async function saveItemEdit(item: ListItem) {
     if (listData.value && 'list' in listData.value) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        listData.value.list.items[index] = response.item as any
+        // Create new array to trigger reactivity
+        const updatedItems = [...listData.value.list.items]
+        updatedItems[index] = response.item as any
+        listData.value.list.items = updatedItems
       }
     }
     editingItemId.value = null
@@ -242,7 +251,8 @@ async function deleteItem(item: ListItem) {
     if (listData.value && 'list' in listData.value) {
       const index = listData.value.list.items.findIndex(i => i.id === item.id)
       if (index !== -1) {
-        listData.value.list.items.splice(index, 1)
+        // Create new array to trigger reactivity
+        listData.value.list.items = listData.value.list.items.filter(i => i.id !== item.id)
       }
     }
   } catch {
